@@ -10,7 +10,7 @@ SRCS  = $(filter-out $(TSRC),$(wildcard *.c) $(wildcard common/*.c) $(wildcard c
 HEADS = $(wildcard *.h) $(wildcard common/*.h) $(wildcard widgets/*.h) $(wildcard clib/*.h) $(wildcard clib/soup/*.h) $(THEAD) globalconf.h
 OBJS  = $(foreach obj,$(SRCS:.c=.o),$(obj))
 
-all: options newline luakit luakit.1
+all: options newline luakit luakit.1.gz
 
 options:
 	@echo luakit build options:
@@ -46,8 +46,11 @@ luakit: $(OBJS)
 	@echo $(CC) -o $@ $(OBJS)
 	@$(CC) -o $@ $(OBJS) $(LDFLAGS)
 
-luakit.1: luakit
-	help2man -N -o $@ ./$<
+luakit.1: luakit.1.in
+	@sed "s/LUAKITVERSION/$(VERSION)/" $< > $@
+
+luakit.1.gz: luakit.1
+	@gzip -c $< > $@
 
 apidoc: luadoc/luakit.lua
 	mkdir -p apidocs
@@ -68,6 +71,7 @@ install:
 	chmod 755 $(INSTALLDIR)/share/luakit/lib/lousy/
 	chmod 755 $(INSTALLDIR)/share/luakit/lib/lousy/widget/
 	chmod 644 $(INSTALLDIR)/share/luakit/lib/*.lua
+	chmod 755 $(INSTALLDIR)/share/luakit/lib/markdown.lua
 	chmod 644 $(INSTALLDIR)/share/luakit/lib/lousy/*.lua
 	chmod 644 $(INSTALLDIR)/share/luakit/lib/lousy/widget/*.lua
 	install -d $(INSTALLDIR)/bin
@@ -76,11 +80,11 @@ install:
 	install config/*.lua $(DESTDIR)/etc/xdg/luakit/
 	chmod 644 $(DESTDIR)/etc/xdg/luakit/*.lua
 	install -d $(DESTDIR)/usr/share/pixmaps
-	install extras/luakit.png $(DESTDIR)/usr/share/pixmaps/
+	install -m0644 extras/luakit.png $(DESTDIR)/usr/share/pixmaps/
 	install -d $(DESTDIR)/usr/share/applications
 	install -m0644 extras/luakit.desktop $(DESTDIR)/usr/share/applications/
 	install -d $(MANPREFIX)/man1/
-	install -m644 luakit.1 $(MANPREFIX)/man1/
+	install -m644 luakit.1.gz $(MANPREFIX)/man1/
 
 uninstall:
 	rm -rf $(INSTALLDIR)/bin/luakit $(INSTALLDIR)/share/luakit $(MANPREFIX)/man1/luakit.1

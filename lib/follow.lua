@@ -28,7 +28,7 @@ module("follow")
 ignore_delay = 200
 
 follow_js = [=[
-window.luakit_follow = (function (window, document) {
+(function(){ window.luakit_follow = (function (window, document) {
     // Follow session state
     var state = {};
 
@@ -76,6 +76,10 @@ window.luakit_follow = (function (window, document) {
             if (!r || (top  = r.top)  > win_h || (bottom = r.bottom) < 0
                    || (left = r.left) > win_w || (right  = r.right)  < 0)
                continue;
+
+            var style = window.getComputedStyle(e);
+            if (style.display === 'none' || style.visibility === 'hidden')
+                continue;
 
             hints[j++] = { element: e, tag: e.tagName,
                 left: left, top: top,
@@ -293,6 +297,7 @@ window.luakit_follow = (function (window, document) {
         visible_elements: visible_elements,
     }
 })(window, document);
+})();
 ]=]
 
 check_js = [=[
@@ -513,7 +518,7 @@ local function follow(w)
     local ret, err = view:eval_js(evaluator, d)
     assert(not err, err)
 
-    if state.persist then
+    if mode.persist then
         w:set_mode("follow", mode)
     else
         w:set_mode()
@@ -548,7 +553,7 @@ local function follow_all_hints(w)
     local ret, err = view:eval_js(evaluator, d)
     assert(not err, err)
 
-    if state.persist then
+    if mode.persist then
         w:set_mode("follow", mode)
     else
         w:set_mode()
@@ -587,14 +592,15 @@ new_mode("follow", {
         local view = w.view
         local all_frames, frames = view.frames, {}
 
-        local state = {
+        if w.follow_persist then
+            mode.persist = true
+            w.follow_persist = nil
+        end
+
+        w.follow_state = {
             mode = mode, view = view, frames = frames,
             evaluator = evaluator,
-            persist = not not w.follow_persist
         }
-
-        w.follow_state = state
-        w.follow_persist = nil
 
         local init_js = string.format([=[luakit_follow.init(%q, %q)]=],
             selector, stylesheet)
@@ -712,11 +718,17 @@ selectors = {
 
 evaluators = {
     click = [=[function (element) {
-        function click(element) {
+        function mouseEvent(name, element) {
             var mouse_event = document.createEvent("MouseEvent");
-            mouse_event.initMouseEvent("click", true, true, window,
+            mouse_event.initMouseEvent(name, true, true, window,
                 0, 0, 0, 0, 0, false, false, false, false, 0, null);
             element.dispatchEvent(mouse_event);
+        }
+        function click(ctrl) {
+            mouseEvent("mouseover", ctrl);
+            mouseEvent("mousedown", ctrl);
+            mouseEvent("mouseup", ctrl);
+            mouseEvent("click", ctrl);
         }
 
         var tag = element.tagName;

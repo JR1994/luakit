@@ -9,6 +9,8 @@ local ipairs = ipairs
 local pairs = pairs
 local print = print
 local lousy = require "lousy"
+local type = type
+local assert = assert
 local capi = {
     luakit = luakit,
     soup = soup,
@@ -27,6 +29,7 @@ local atime = 0
 -- Set max session age to 3600
 session_timeout = 3600
 force_session_timeout = true
+store_session_cookies = false
 
 -- Setup signals on module
 lousy.signal.setup(_M, true)
@@ -89,7 +92,7 @@ function init()
 
     query_delete_expired = db:compile [[
         DELETE FROM moz_cookies
-        WHERE expiry < ? AND lastAccessed < ?
+        WHERE expiry >= 0 AND expiry < ? AND lastAccessed < ?
     ]]
 end
 
@@ -114,7 +117,7 @@ capi.soup.add_signal("request-started", function ()
 end)
 
 capi.soup.add_signal("cookie-changed", function (old, new)
-    if new then
+    if new and new.domain ~= "" then
         if _M.emit_signal("accept-cookie", new) == false then
             new.expires = 0 -- expire cookie
             capi.soup.add_cookies{new}
@@ -127,7 +130,7 @@ capi.soup.add_signal("cookie-changed", function (old, new)
                 new.expires = math.ceil(time() + _M.session_timeout)
                 capi.soup.add_cookies{new}
             end
-            return
+            if not _M.store_session_cookies then return end
         end
 
         -- Insert new cookie
@@ -159,7 +162,7 @@ end)
 capi.luakit.add_signal("can-close", function ()
     if query_delete_expired then
         local t = time()
-        query_delete_expired:exec{ t, (t - 86400) * 1e6 }
+        query_delete_expired:exec{ t, (t - (60 * 60 * 24)) * 1e6 }
     end
 end)
 
