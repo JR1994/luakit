@@ -21,6 +21,10 @@
 #include "luah.h"
 #include "widgets/common.h"
 
+#if GTK_CHECK_VERSION(3,14,0)
+/* align and padding deprecated. Use margin and alignment properties of
+ * GtkWidgets instead. */
+#else
 static gint
 luaH_label_get_align(lua_State *L, widget_t *w)
 {
@@ -96,6 +100,7 @@ luaH_label_set_padding(lua_State *L, widget_t *w)
     gtk_misc_set_padding(GTK_MISC(w->widget), xpad, ypad);
     return 0;
 }
+#endif
 
 static gint
 luaH_label_index(lua_State *L, widget_t *w, luakit_token_t token)
@@ -103,11 +108,14 @@ luaH_label_index(lua_State *L, widget_t *w, luakit_token_t token)
     switch(token) {
       LUAKIT_WIDGET_INDEX_COMMON(w)
 
+#if GTK_CHECK_VERSION(3,14,0)
+#else
       case L_TK_PADDING:
         return luaH_label_get_padding(L, w);
 
       case L_TK_ALIGN:
         return luaH_label_get_align(L, w);
+#endif
 
       /* push string properties */
       PS_CASE(FG,               g_object_get_data(G_OBJECT(w->widget), "fg"))
@@ -129,17 +137,24 @@ luaH_label_newindex(lua_State *L, widget_t *w, luakit_token_t token)
 {
     size_t len;
     const gchar *tmp;
+#if GTK_CHECK_VERSION(3,0,0)
+    GdkRGBA c;
+#else
     GdkColor c;
+#endif
     PangoFontDescription *font;
 
     switch(token) {
       LUAKIT_WIDGET_NEWINDEX_COMMON(w)
 
+#if GTK_CHECK_VERSION(3,14,0)
+#else
       case L_TK_PADDING:
         return luaH_label_set_padding(L, w);
 
       case L_TK_ALIGN:
         return luaH_label_set_align(L, w);
+#endif
 
       case L_TK_TEXT:
         gtk_label_set_markup(GTK_LABEL(w->widget),
@@ -148,19 +163,31 @@ luaH_label_newindex(lua_State *L, widget_t *w, luakit_token_t token)
 
       case L_TK_FG:
         tmp = luaL_checklstring(L, 3, &len);
+#if GTK_CHECK_VERSION(3,0,0)
+        if (!gdk_rgba_parse(&c, tmp)) {
+#else
         if (!gdk_color_parse(tmp, &c)) {
+#endif
             warn("invalid color: %s", tmp);
             return 0;
         }
 
+#if GTK_CHECK_VERSION(3,0,0)
+        gtk_widget_override_color(GTK_WIDGET(w->widget), GTK_STATE_FLAG_NORMAL, &c);
+#else
         gtk_widget_modify_fg(GTK_WIDGET(w->widget), GTK_STATE_NORMAL, &c);
+#endif
         g_object_set_data_full(G_OBJECT(w->widget), "fg", g_strdup(tmp), g_free);
         break;
 
       case L_TK_FONT:
         tmp = luaL_checklstring(L, 3, &len);
         font = pango_font_description_from_string(tmp);
+#if GTK_CHECK_VERSION(3,0,0)
+        gtk_widget_override_font(GTK_WIDGET(w->widget), font);
+#else
         gtk_widget_modify_font(GTK_WIDGET(w->widget), font);
+#endif
         pango_font_description_free(font);
         g_object_set_data_full(G_OBJECT(w->widget), "font", g_strdup(tmp), g_free);
         break;
@@ -191,12 +218,25 @@ widget_label(widget_t *w, luakit_token_t UNUSED(token))
 
     /* create gtk label widget as main widget */
     w->widget = gtk_label_new(NULL);
+#if GTK_CHECK_VERSION(3,0,0)
+    gtk_label_set_ellipsize(GTK_LABEL(w->widget), PANGO_ELLIPSIZE_END);
+#endif
 
     /* setup default settings */
     gtk_label_set_selectable(GTK_LABEL(w->widget), FALSE);
     gtk_label_set_use_markup(GTK_LABEL(w->widget), TRUE);
+#if GTK_CHECK_VERSION(3,14,0)
+    gtk_widget_set_halign(GTK_WIDGET(w->widget), GTK_ALIGN_START);
+    gtk_widget_set_valign(GTK_WIDGET(w->widget), GTK_ALIGN_START);
+
+    GValue margin = G_VALUE_INIT;
+    g_value_init(&margin, G_TYPE_INT);
+    g_value_set_int(&margin, 2);
+    g_object_set_property(G_OBJECT(w->widget), "margin", &margin);
+#else
     gtk_misc_set_alignment(GTK_MISC(w->widget), 0, 0);
     gtk_misc_set_padding(GTK_MISC(w->widget), 2, 2);
+#endif
 
     g_object_connect(G_OBJECT(w->widget),
       LUAKIT_WIDGET_SIGNAL_COMMON(w)
